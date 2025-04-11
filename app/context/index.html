@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Language Detection</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .video-container {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    
+    #video {
+      border: 3px solid #4CAF50;
+      border-radius: 8px;
+    }
+    
+    .result-container {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      margin-bottom: 20px;
+      gap: 20px;
+    }
+    
+    .result-box {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      width: 45%;
+    }
+    
+    .letter {
+      font-size: 3em;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    
+    .confidence-bar {
+      height: 20px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    
+    .confidence-fill {
+      height: 100%;
+      background-color: #4CAF50;
+      transition: width 0.3s ease;
+    }
+    
+    .sentence-container {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 10px 15px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    .debug-container {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    #debugImage, #handRoiImage {
+      max-width: 100%;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    
+    .loading {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    .stability-indicator {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+      gap: 10px;
+    }
+    
+    #indicator {
+      height: 30px;
+      width: 30px;
+      border-radius: 50%;
+      background-color: #808080;
+      display: inline-block;
+    }
+    
+    .keyboard-shortcuts {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 20px;
+      text-align: left;
+    }
+    
+    .keyboard-shortcuts h3 {
+      margin-top: 0;
+    }
+    
+    .shortcut-grid {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 5px;
+    }
+    
+    .shortcut {
+      display: flex;
+      align-items: center;
+    }
+    
+    .key {
+      background-color: #e9ecef;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-family: monospace;
+      margin-right: 10px;
+    }
+
+    #status {
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+
+    #status.connected {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    #status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    #status.pending {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sign Language Detection</h1>
+  
+  <div id="status" class="pending">Connecting to backend...</div>
+  
+  <div class="container">
+    <div class="video-container">
+      <video id="video" width="400" height="300" autoplay playsinline></video>
+      <div id="loading" class="loading" style="display: none;">Processing...</div>
+    </div>
+    
+    <div class="result-container">
+      <div class="result-box">
+        <h3>Current Letter</h3>
+        <div class="letter" id="output">?</div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+        </div>
+        <p>Confidence: <span id="confidenceValue">0%</span></p>
+        <div class="stability-indicator">
+          <div id="indicator"></div>
+          <span id="indicatorText">No sign detected</span>
+        </div>
+      </div>
+      
+      <div class="result-box">
+        <h3>Hand Detection</h3>
+        <div class="debug-container">
+          <img id="debugImage" src="" alt="Hand detection debug" style="display: none;">
+          <img id="handRoiImage" src="" alt="Hand ROI" style="display: none;">
+          <p id="noHandMessage">No hand detected</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="sentence-container">
+      <h3>Current Sentence</h3>
+      <p id="currentSentence">[Empty]</p>
+    </div>
+    
+    <div class="controls">
+      <button id="addLetterBtn">Add Current Letter</button>
+      <button id="addSpaceBtn">Add Space</button>
+      <button id="backspaceBtn">Backspace</button>
+      <button id="clearBtn">Clear</button>
+      <button id="saveSentenceBtn">Save Sentence</button>
+    </div>
+    
+    <div class="sentence-container">
+      <h3>Saved Sentences</h3>
+      <ul id="savedSentences">
+        <li>[No saved sentences]</li>
+      </ul>
+    </div>
+    
+    <div class="keyboard-shortcuts">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="shortcut-grid">
+        <div class="shortcut">
+          <span class="key">Space</span> Add space
+        </div>
+        <div class="shortcut">
+          <span class="key">Backspace</span> Delete last character
+        </div>
+        <div class="shortcut">
+          <span class="key">C</span> Clear sentence
+        </div>
+        <div class="shortcut">
+          <span class="key">V</span> Save sentence
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const BACKEND_URL = 'http://localhost:8000';
+    const FRAME_INTERVAL = 100; // 10 fps
+    
+    // DOM elements
+    const video = document.getElementById('video');
+    const output = document.getElementById('output');
+    const confidenceFill = document.getElementById('confidenceFill');
+    const confidenceValue = document.getElementById('confidenceValue');
+    const debugImage = document.getElementById('debugImage');
+    const handRoiImage = document.getElementById('handRoiImage');
+    const noHandMessage = document.getElementById('noHandMessage');
+    const currentSentence = document.getElementById('currentSentence');
+    const savedSentencesList = document.getElementById('savedSentences');
+    const loading = document.getElementById('loading');
+    const indicator = document.getElementById('indicator');
+    const indicatorText = document.getElementById('indicatorText');
+    const statusElement = document.getElementById('status');
+    
+    // Buttons
+    const addLetterBtn = document.getElementById('addLetterBtn');
+    const addSpaceBtn = document.getElementById('addSpaceBtn');
+    const backspaceBtn = document.getElementById('backspaceBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const saveSentenceBtn = document.getElementById('saveSentenceBtn');
+    
+    // Global variables
+    let sentence = "";
+    let savedSentences = [];
+    let currentPrediction = "None";
+    let isProcessing = false;
+    let lastLetter = "None";
+    let letterStableCount = 0;
+    let letterStabilityThreshold = 3;
+    let letterCooldown = 0;
+    const letterCooldownThreshold = 5;
+    let lastAddedLetter = null;
+    let processingInterval = null;
+    let backendConnected = false;
+    
+    // Check backend connection
+    async function checkBackendConnection() {
+      try {
+        const response = await fetch(`${BACKEND_URL}/`);
+        if (response.ok) {
+          statusElement.textContent = "Connected to backend ✓";
+          statusElement.className = "connected";
+          backendConnected = true;
+          return true;
+        } else {
+          throw new Error(`Backend returned status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error("Backend connection error:", error);
+        statusElement.textContent = `Backend connection error: ${error.message}. Make sure the FastAPI server is running on ${BACKEND_URL}`;
+        statusElement.className = "error";
+        backendConnected = false;
+        return false;
+      }
+    }
+    
+    // Initialize webcam
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          } 
+        });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          console.log("Camera initialized, video dimensions:", video.videoWidth, "x", video.videoHeight);
+        };
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+        alert("Could not access camera. Please make sure your camera is connected and you've granted permission.");
+      }
+    }
+    
+    // Update the displayed sentence
+    function updateSentenceDisplay() {
+      currentSentence.textContent = sentence || "[Empty]";
+    }
+    
+    // Update saved sentences list
+    function updateSavedSentencesList() {
+      if (savedSentences.length === 0) {
+        savedSentencesList.innerHTML = "<li>[No saved sentences]</li>";
+      } else {
+        savedSentencesList.innerHTML = "";
+        savedSentences.forEach((s, index) => {
+          const li = document.createElement("li");
+          li.textContent = s;
+          savedSentencesList.appendChild(li);
+        });
+      }
+    }
+    
+    // Update stability indicator
+    function updateStabilityIndicator(state, count = 0) {
+      let color = "#808080";  // Default gray
+      let text = "No sign detected";
+      
+      if (state === "cooldown") {
+        color = "#0080FF";  // Blue during cooldown
+        text = `Cooldown: ${letterCooldown}`;
+      } else if (state === "stable") {
+        // Green progress based on stability
+        const progress = Math.min(1.0, count / letterStabilityThreshold);
+        const red = Math.floor(255 * (1 - progress));
+        const green = Math.floor(255 * progress);
+        color = `rgb(${red}, ${green}, 0)`;
+        text = `Stable: ${count}/${letterStabilityThreshold}`;
+      } else if (state === "changing") {
+        color = "#FF0000";  // Red when letter is changing
+        text = "Detecting...";
+      }
+      
+      indicator.style.backgroundColor = color;
+      indicatorText.textContent = text;
+    }
+    
+    // Process frame
+    async function processFrame() {
+      if (isProcessing || !backendConnected || !video.videoWidth) return;
+      
+      isProcessing = true;
+      loading.style.display = 'block';
+      
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Flip the image horizontally for more intuitive interaction
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0);
+        
+        canvas.toBlob(async (blob) => {
+          const formData = new FormData();
+          formData.append('file', blob, 'frame.jpg');
+          
+          try {
+            const response = await fetch(`${BACKEND_URL}/predict`, {
+              method: 'POST',
+              body: formData
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            // Update UI with prediction
+            currentPrediction = data.prediction;
+            output.innerText = currentPrediction === "None" || currentPrediction === "Uncertain" ? "?" : currentPrediction;
+            
+            // Update confidence bar
+            const confidencePercent = Math.round(data.confidence * 100);
+            confidenceFill.style.width = `${confidencePercent}%`;
+            confidenceValue.innerText = `${confidencePercent}%`;
+            
+            // Update debug image
+            if (data.has_hand) {
+              if (data.debug_image) {
+                debugImage.src = `data:image/jpeg;base64,${data.debug_image}`;
+                debugImage.style.display = 'block';
+              }
+              
+              if (data.hand_roi) {
+                handRoiImage.src = `data:image/jpeg;base64,${data.hand_roi}`;
+                handRoiImage.style.display = 'block';
+              }
+              
+              noHandMessage.style.display = 'none';
+            } else {
+              debugImage.style.display = 'none';
+              handRoiImage.style.display = 'none';
+              noHandMessage.style.display = 'block';
+            }
+            
+            // Handle letter stability for automatic sentence building
+            if (letterCooldown > 0) {
+              letterCooldown -= 1;
+              updateStabilityIndicator("cooldown");
+            } 
+            else if (currentPrediction !== "None" && currentPrediction !== "Uncertain" && data.confidence > 0.7) {
+              if (currentPrediction === lastLetter) {
+                letterStableCount += 1;
+                updateStabilityIndicator("stable", letterStableCount);
+                
+                // Once stable enough, add the letter automatically
+                if (letterStableCount >= letterStabilityThreshold) {
+                  if (lastAddedLetter !== currentPrediction) {  // Avoid duplicates
+                    sentence += currentPrediction;
+                    updateSentenceDisplay();
+                    lastAddedLetter = currentPrediction;
+                    console.log(`Added letter: ${currentPrediction}, Current sentence: ${sentence}`);
+                  }
+                  
+                  // Reset stability counter and set cooldown
+                  letterStableCount = 0;
+                  letterCooldown = letterCooldownThreshold;
+                }
+              } else {
+                lastLetter = currentPrediction;
+                letterStableCount = 0;
+                updateStabilityIndicator("changing");
+              }
+            } else {
+              lastLetter = "None";
+              letterStableCount = 0;
+              updateStabilityIndicator("none");
+            }
+            
+          } catch (error) {
+            console.error("Error calling API:", error);
+            backendConnected = false;
+            await checkBackendConnection(); // Try to reconnect
+          } finally {
+            isProcessing = false;
+            loading.style.display = 'none';
+          }
+        }, 'image/jpeg', 0.8);
+      } catch (error) {
+        console.error("Error processing frame:", error);
+        isProcessing = false;
+        loading.style.display = 'none';
+      }
+    }
+    
+    // Start processing frames
+    function startProcessing() {
+      if (processingInterval) clearInterval(processingInterval);
+      processingInterval = setInterval(processFrame, FRAME_INTERVAL);
+      console.log(`Started processing frames at ${1000/FRAME_INTERVAL} fps`);
+    }
+    
+    // Button event handlers
+    addLetterBtn.addEventListener('click', () => {
+      if (currentPrediction !== "None" && currentPrediction !== "Uncertain") {
+        sentence += currentPrediction;
+        updateSentenceDisplay();
+        lastAddedLetter = currentPrediction;
+      }
+    });
+    
+    addSpaceBtn.addEventListener('click', () => {
+      sentence += " ";
+      updateSentenceDisplay();
+      lastAddedLetter = null;
+    });
+    
+    backspaceBtn.addEventListener('click', () => {
+      if (sentence.length > 0) {
+        sentence = sentence.slice(0, -1);
+        updateSentenceDisplay();
+        lastAddedLetter = null;
+      }
+    });
+    
+    clearBtn.addEventListener('click', () => {
+      sentence = "";
+      updateSentenceDisplay();
+      lastAddedLetter = null;
+    });
+    
+    saveSentenceBtn.addEventListener('click', () => {
+      if (sentence.trim()) {
+        savedSentences.push(sentence);
+        sentence = "";
+        updateSentenceDisplay();
+        updateSavedSentencesList();
+        lastAddedLetter = null;
+      }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        addSpaceBtn.click();
+        e.preventDefault();
+      } else if (e.code === 'Backspace') {
+        backspaceBtn.click();
+        e.preventDefault();
+      } else if (e.code === 'KeyC') {
+        clearBtn.click();
+      } else if (e.code === 'KeyV') {
+        saveSentenceBtn.click();
+      }
+    });
+    
+    // Initialize
+    async function init() {
+      if (await checkBackendConnection()) {
+        await initCamera();
+        startProcessing();
+      } else {
+        // Try reconnecting every 5 seconds
+        setTimeout(init, 5000);
+      }
+    }
+    
+    // Start initialization
+    init();
+  </script>
+</body>
+</html>

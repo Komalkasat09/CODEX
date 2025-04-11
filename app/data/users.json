@@ -1,0 +1,115 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Komal",
+      "email": "komal@example.com",
+      "password": "komal123",
+      "learningProgress": {
+        "currentLevel": 2,
+        "completedLessons": 5,
+        "totalLessons": 10,
+        "lastAccessed": "2024-04-08T10:00:00Z",
+        "progress": {
+          "level1": {
+            "completed": true,
+            "score": 95,
+            "lessons": [
+              { "id": 1, "completed": true, "score": 100 },
+              { "id": 2, "completed": true, "score": 90 }
+            ]
+          },
+          "level2": {
+            "completed": false,
+            "score": 0,
+            "lessons": [
+              { "id": 3, "completed": true, "score": 85 },
+              { "id": 4, "completed": true, "score": 90 },
+              { "id": 5, "completed": true, "score": 95 }
+            ]
+          }
+        }
+      },
+      "dashboardStats": {
+        "totalTimeSpent": "5h 30m",
+        "averageScore": 92,
+        "streak": 3,
+        "achievements": ["Fast Learner", "Consistent Student"]
+      }
+    },
+    {
+      "id": 2,
+      "name": "Kavish",
+      "email": "kavish@example.com",
+      "password": "kavish123",
+      "learningProgress": {
+        "currentLevel": 3,
+        "completedLessons": 8,
+        "totalLessons": 10,
+        "lastAccessed": "2024-04-08T09:30:00Z",
+        "progress": {
+          "level1": {
+            "completed": true,
+            "score": 100,
+            "lessons": [
+              { "id": 1, "completed": true, "score": 100 },
+              { "id": 2, "completed": true, "score": 100 }
+            ]
+          },
+          "level2": {
+            "completed": true,
+            "score": 95,
+            "lessons": [
+              { "id": 3, "completed": true, "score": 90 },
+              { "id": 4, "completed": true, "score": 100 }
+            ]
+          },
+          "level3": {
+            "completed": false,
+            "score": 0,
+            "lessons": [
+              { "id": 5, "completed": true, "score": 95 },
+              { "id": 6, "completed": true, "score": 90 },
+              { "id": 7, "completed": true, "score": 100 },
+              { "id": 8, "completed": true, "score": 95 }
+            ]
+          }
+        }
+      },
+      "dashboardStats": {
+        "totalTimeSpent": "8h 15m",
+        "averageScore": 95,
+        "streak": 5,
+        "achievements": ["Master Student", "Perfect Score"]
+      }
+    },
+    {
+      "id": 3,
+      "name": "Dev",
+      "email": "dev@example.com",
+      "password": "dev123",
+      "learningProgress": {
+        "currentLevel": 1,
+        "completedLessons": 2,
+        "totalLessons": 10,
+        "lastAccessed": "2024-04-08T11:00:00Z",
+        "progress": {
+          "level1": {
+            "completed": false,
+            "score": 0,
+            "lessons": [
+              { "id": 1, "completed": true, "score": 85 },
+              { "id": 2, "completed": true, "score": 80 }
+            ]
+          }
+        }
+      },
+      "dashboardStats": {
+        "totalTimeSpent": "2h 45m",
+        "averageScore": 82,
+        "streak": 1,
+        "achievements": ["New Learner"]
+      }
+    }
+  ]
+} 
