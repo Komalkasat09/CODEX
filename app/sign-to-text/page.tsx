@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Camera, CameraOff, RotateCcw, Volume2, Globe } from "lucide-react"
+import { Camera, CameraOff, RotateCcw, Volume2, Globe, Sparkles } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
@@ -30,6 +30,7 @@ export default function SignToTextPage() {
   const [isSpeaking, setIsSpeaking] = useState(false) // State for speech status
   const [isTranslating, setIsTranslating] = useState(false) // State for translation status
   const [speechLanguage, setSpeechLanguage] = useState<"en" | "hi" | "both">("en") // Speech language selector
+  const [isAutocorrecting, setIsAutocorrecting] = useState(false) // State for autocorrect status
 
   // For sentence building (matching index.html)
   const [sentence, setSentence] = useState("")
@@ -784,6 +785,70 @@ export default function SignToTextPage() {
     };
   }, []);
 
+  // Add autocorrect function
+  const autocorrectText = useCallback(async (text: string): Promise<string> => {
+    if (!text.trim()) return "";
+    
+    setIsAutocorrecting(true);
+    try {
+      // Use a single endpoint with simple error handling for clarity
+      console.log("Sending text to autocorrect API:", text);
+      
+      // Add a debug log before making the request
+      console.log("Connecting to autocorrect API at http://localhost:8000/autocorrect");
+      
+      const response = await fetch('http://localhost:8000/autocorrect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Origin': window.location.origin
+        },
+        body: JSON.stringify({ text }),
+        // Add shorter timeout
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Autocorrect result:", data);
+      
+      if (!data || !data.corrected) {
+        throw new Error("Invalid response format - missing corrected text");
+      }
+      
+      // Alert the user that text was corrected
+      if (data.corrected !== text) {
+        setAlertMessage(`Text autocorrected: "${text}" → "${data.corrected}"`);
+        setTimeout(() => setAlertMessage(""), 3000);
+      } else {
+        setAlertMessage("No corrections needed!");
+        setTimeout(() => setAlertMessage(""), 2000);
+      }
+      
+      return data.corrected;
+    } catch (error: any) {
+      console.error("Autocorrect error:", error);
+      
+      // Check if it's a network error
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        setAlertMessage("Cannot connect to autocorrect server. Make sure it's running at http://localhost:8000");
+      } else {
+        setAlertMessage(`Autocorrection error: ${error.message}. Using original text.`);
+      }
+      
+      setTimeout(() => setAlertMessage(""), 5000);
+      return text;
+    } finally {
+      setIsAutocorrecting(false);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen p-8 pt-24">
       <div className="max-w-7xl mx-auto">
@@ -1105,7 +1170,7 @@ export default function SignToTextPage() {
                   )}
                 </div>
                 
-                <div className="flex mt-2 space-x-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Button size="sm" variant="outline" onClick={() => {
                     setSentence(prev => prev + " ");
                     setLastAddedLetter(null);
@@ -1129,6 +1194,24 @@ export default function SignToTextPage() {
                     setLastAddedLetter(null);
                   }} disabled={sentence.length === 0}>
                     Clear
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="default"
+                    className={`bg-purple-600 hover:bg-purple-700 text-white ${isAutocorrecting ? 'animate-pulse' : ''}`}
+                    onClick={async () => {
+                      if (sentence.trim()) {
+                        const corrected = await autocorrectText(sentence);
+                        if (corrected && corrected !== sentence) {
+                          setSentence(corrected);
+                          setLastAddedLetter(null);
+                        }
+                      }
+                    }}
+                    disabled={!sentence.trim() || isAutocorrecting}
+                  >
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    Autocorrect
                   </Button>
                 </div>
               </div>

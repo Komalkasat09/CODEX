@@ -12,7 +12,7 @@ import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tool
          BarChart as RechartsBarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 import { useUser } from '../context/UserContext'
 import { useRouter } from 'next/navigation'
-
+import  Spline  from '@splinetool/react-spline'
 // Sample user stats data
 const userStats = {
   completedLessons: 12,
@@ -174,7 +174,7 @@ const Dashboard = () => {
                 <div className="w-full h-full">
                   {/* Placeholder for 3D model */}
                   <div className="w-full h-full bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg flex justify-center items-center">
-                    <HandMetal className="h-16 w-16 text-primary/40" />
+                  <Spline scene="https://prod.spline.design/kCgc3rHsmAGC0CE0/scene.splinecode" />
                   </div>
                 </div>
               </CardContent>
@@ -364,19 +364,19 @@ const Dashboard = () => {
                 <CardDescription>Frequently used tools</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Link href="/dashboard/converter">
+                <Link href="/CSL">
                   <Button variant="outline" className="w-full justify-start">
                     <HandMetal className="mr-2 h-4 w-4" />
                     Text to Sign Converter
                   </Button>
                 </Link>
-                <Link href="/dashboard/learn">
+                <Link href="/learn">
                   <Button variant="outline" className="w-full justify-start">
                     <BookOpen className="mr-2 h-4 w-4" />
                     Learning Resources
                   </Button>
                 </Link>
-                <Link href="/dashboard/call">
+                <Link href="/call">
                   <Button variant="outline" className="w-full justify-start">
                     <Phone className="mr-2 h-4 w-4" />
                     Practice Video Call

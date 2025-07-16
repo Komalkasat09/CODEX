@@ -13,6 +13,10 @@ import { useUser } from '../context/UserContext'
 import { useRouter } from 'next/navigation'
 import { Input } from "@/components/ui/input"
 import confetti from 'canvas-confetti'
+import Spline from '@splinetool/react-spline'
+
+// Define the API base URL directly
+const API_BASE_URL = 'http://localhost:8000';
 
 // Define quiz modules 
 const quizModules = [
@@ -175,6 +179,9 @@ export default function QuizPage() {
   const webcamRef = useRef<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   
+  // Mouse position tracking for 3D character animation
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  
   // Quiz progress
   const progressPercentage = selectedModule !== null 
     ? (currentQuestionIndex / quizModules[selectedModule].questions.length) * 100 
@@ -186,6 +193,20 @@ export default function QuizPage() {
       router.push('/sign-in');
       return;
     }
+    
+    // Set up mouse movement tracking
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight
+      });
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, [user, router]);
 
   // Toggle webcam for camera questions
@@ -220,43 +241,120 @@ export default function QuizPage() {
   };
 
   // Process webcam frames and detect signs
-  const processCameraInput = () => {
+  const processCameraInput = async () => {
     setIsProcessing(true);
     
-    // Simulate sign language detection with a timeout
-    // In a real implementation, this would connect to your sign detection backend
-    setTimeout(() => {
-      if (selectedModule === null) return;
-      
+    if (!webcamRef.current || !isWebcamOn || selectedModule === null) {
+      setIsProcessing(false);
+      return;
+    }
+    
+    try {
       const moduleQuestions = quizModules[selectedModule].questions;
       const currentQuestion = moduleQuestions[currentQuestionIndex];
       
-      // Simulate random correct/incorrect detection
-      // In a real app, this would be the result from your ML model
-      const detectedSign = Math.random() > 0.3 
-        ? currentQuestion.answer 
-        : ["e", "f", "g", "h"][Math.floor(Math.random() * 4)];
+      // Capture current frame from webcam
+      const video = webcamRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
       
-      setCameraDetection(typeof detectedSign === 'string' ? detectedSign : detectedSign[0]);
-      
-      // Check if answer is correct
-      const isAnswerCorrect = typeof currentQuestion.answer === 'string' 
-        ? detectedSign === currentQuestion.answer
-        : detectedSign === currentQuestion.answer[0];
-      
-      setIsCorrect(isAnswerCorrect);
-      
-      if (isAnswerCorrect) {
-        setScore(prevScore => prevScore + 1);
-        
-        // Move to next question after delay
-        setTimeout(() => {
-          moveToNextQuestion();
-        }, 1500);
+      if (!ctx) {
+        throw new Error("Could not get canvas context");
       }
       
+      // Flip horizontally for better user experience
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0);
+      
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else throw new Error("Failed to create blob from canvas");
+        }, 'image/jpeg', 0.9); // Higher quality
+      });
+      
+      // Create form data with the frame
+      const formData = new FormData();
+      formData.append('file', blob, `quiz_${Date.now()}.jpg`);
+      
+      console.log(`Sending frame to backend at ${API_BASE_URL}/api/sign-to-text/predict`);
+      
+      // Send to backend API with proper headers
+      const response = await fetch(`${API_BASE_URL}/api/sign-to-text/predict`, {
+        method: 'POST',
+        body: formData,
+        cache: 'no-store',
+        headers: {
+          'pragma': 'no-cache',
+          'cache-control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("Prediction result:", result);
+      
+      // First check if a hand is detected
+      if (!result.has_hand) {
+        console.log("No hand detected in the frame");
+        setCameraDetection("no hand");
+        setIsProcessing(false);
+        return;
+      }
+      
+      if (result.prediction && 
+          result.prediction !== "None" && 
+          result.prediction !== "Uncertain" &&
+          result.confidence > 0.6) { // Use sufficient confidence threshold
+        
+        // Get the predicted letter
+        const detectedSign = result.prediction.toLowerCase();
+        console.log(`Detected sign: "${detectedSign}" with confidence ${Math.round(result.confidence * 100)}%`);
+        setCameraDetection(detectedSign);
+        
+        // Check if answer is correct - handle with proper type assertion
+        let expectedAnswer = "";
+        if ('answer' in currentQuestion) {
+          expectedAnswer = typeof currentQuestion.answer === 'string' 
+            ? (currentQuestion.answer as string).toLowerCase()
+            : (currentQuestion.answer as string[])[0].toLowerCase();
+        }
+        
+        console.log(`Expected answer: "${expectedAnswer}"`);
+        const isAnswerCorrect = detectedSign === expectedAnswer;
+        console.log(`Is answer correct: ${isAnswerCorrect}`);
+        setIsCorrect(isAnswerCorrect);
+        
+        if (isAnswerCorrect) {
+          setScore(prevScore => prevScore + 1);
+          
+          // Move to next question after delay
+          setTimeout(() => {
+            moveToNextQuestion();
+          }, 1500);
+        }
+      } else {
+        // No clear prediction or low confidence
+        if (result.prediction === "None" || result.prediction === "Uncertain") {
+          console.log("Model returned uncertain prediction");
+          setCameraDetection("uncertain");
+        } else if (result.confidence <= 0.6) {
+          console.log(`Low confidence (${Math.round(result.confidence * 100)}%) for sign: ${result.prediction}`);
+          setCameraDetection("low confidence");
+        }
+      }
+    } catch (error) {
+      console.error("Error processing frame:", error);
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
   // Check text input answers
@@ -378,8 +476,8 @@ export default function QuizPage() {
               
               {/* Feedback overlay */}
               {isCorrect !== null && (
-                <div className={`absolute inset-0 flex items-center justify-center bg-${isCorrect ? 'green' : 'red'}-500/50`}>
-                  <div className={`bg-${isCorrect ? 'green' : 'red'}-500 text-white p-4 rounded-full`}>
+                <div className={`absolute inset-0 flex items-center justify-center ${isCorrect ? 'bg-green-500/50' : 'bg-red-500/50'}`}>
+                  <div className={`${isCorrect ? 'bg-green-500' : 'bg-red-500'} text-white p-4 rounded-full`}>
                     {isCorrect ? (
                       <CheckCircle className="w-12 h-12" />
                     ) : (
@@ -503,94 +601,129 @@ export default function QuizPage() {
   }
 
   return (
-    <div className="container mx-auto pt-20 pb-10">
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-2">
-          Sign Language Quiz
-        </h1>
-        <p className="text-muted-foreground">Test your sign language skills with interactive challenges</p>
+    <div className="flex min-h-screen">
+      {/* Quiz Content Section */}
+      <div className="flex-1 container py-20 px-4 md:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-2">
+            Sign Language Quiz
+          </h1>
+          <p className="text-muted-foreground">Test your sign language skills with interactive challenges</p>
+        </div>
+        
+        {selectedModule === null ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {quizModules.map((module, index) => (
+              <Card 
+                key={module.id}
+                className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary"
+                onClick={() => startQuiz(index)}
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div 
+                    className="p-4 rounded-full" 
+                    style={{ backgroundColor: `${module.color}20` }}
+                  >
+                    <div 
+                      className="p-3 rounded-full" 
+                      style={{ backgroundColor: module.color }}
+                    >
+                      {module.icon}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold">{module.title}</h3>
+                    <p className="text-sm text-muted-foreground">{module.description}</p>
+                  </div>
+                  
+                  <Button 
+                    className="w-full mt-4" 
+                    style={{ 
+                      backgroundColor: module.color,
+                      borderColor: module.color
+                    }}
+                  >
+                    Start Quiz
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-6 max-w-3xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="p-2 rounded-full"
+                  style={{ backgroundColor: quizModules[selectedModule].color }}
+                >
+                  {quizModules[selectedModule].icon}
+                </div>
+                <h2 className="text-2xl font-bold">{quizModules[selectedModule].title}</h2>
+              </div>
+              <Button variant="outline" onClick={returnToModules}>
+                Exit Quiz
+              </Button>
+            </div>
+            
+            {/* Quiz progress bar */}
+            {!quizCompleted && (
+              <div className="mb-6 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Question {currentQuestionIndex + 1} of {quizModules[selectedModule].questions.length}</span>
+                  <span>Score: {score}</span>
+                </div>
+                <Progress value={progressPercentage} className="h-2">
+                  <div 
+                    className="h-full rounded-full transition-all" 
+                    style={{ 
+                      width: `${progressPercentage}%`,
+                      background: `linear-gradient(90deg, ${quizModules[selectedModule].color}, ${quizModules[selectedModule].color}AA)` 
+                    }}
+                  />
+                </Progress>
+              </div>
+            )}
+            
+            {/* Quiz content - questions or completion screen */}
+            {quizCompleted ? renderQuizCompletion() : renderQuestion()}
+          </Card>
+        )}
       </div>
       
-      {selectedModule === null ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {quizModules.map((module, index) => (
-            <Card 
-              key={module.id}
-              className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary"
-              onClick={() => startQuiz(index)}
-            >
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div 
-                  className="p-4 rounded-full" 
-                  style={{ backgroundColor: `${module.color}20` }}
-                >
-                  <div 
-                    className="p-3 rounded-full" 
-                    style={{ backgroundColor: module.color }}
-                  >
-                    {module.icon}
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold">{module.title}</h3>
-                  <p className="text-sm text-muted-foreground">{module.description}</p>
-                </div>
-                
-                <Button 
-                  className="w-full mt-4" 
-                  style={{ 
-                    backgroundColor: module.color,
-                    borderColor: module.color
-                  }}
-                >
-                  Start Quiz
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </Card>
-          ))}
+      {/* 3D Character/Mascot Section */}
+      <motion.div
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.8 }}
+        className="flex-1 relative overflow-hidden bg-gradient-to-br from-primary/5 to-secondary/10 hidden lg:block"
+      >
+        <div className="absolute inset-0 bg-grid-pattern opacity-10" />
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            transform: `translate(${(mousePosition.x * 20) - 10}px, ${(mousePosition.y * 20) - 10}px)`
+          }}
+        >
+          <Spline scene="https://prod.spline.design/eW0vBMWO1wLa235G/scene.splinecode" />
         </div>
-      ) : (
-        <Card className="p-6 max-w-3xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
-              <div 
-                className="p-2 rounded-full"
-                style={{ backgroundColor: quizModules[selectedModule].color }}
-              >
-                {quizModules[selectedModule].icon}
-              </div>
-              <h2 className="text-2xl font-bold">{quizModules[selectedModule].title}</h2>
-            </div>
-            <Button variant="outline" onClick={returnToModules}>
-              Exit Quiz
-            </Button>
-          </div>
-          
-          {/* Quiz progress bar */}
-          {!quizCompleted && (
-            <div className="mb-6 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Question {currentQuestionIndex + 1} of {quizModules[selectedModule].questions.length}</span>
-                <span>Score: {score}</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2">
-                <div 
-                  className="h-full rounded-full transition-all" 
-                  style={{ 
-                    width: `${progressPercentage}%`,
-                    background: `linear-gradient(90deg, ${quizModules[selectedModule].color}, ${quizModules[selectedModule].color}AA)` 
-                  }}
-                />
-              </Progress>
-            </div>
-          )}
-          
-          {/* Quiz content - questions or completion screen */}
-          {quizCompleted ? renderQuizCompletion() : renderQuestion()}
-        </Card>
-      )}
+        <div className="absolute bottom-8 left-8 max-w-md">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+          >
+            <h2 className="text-3xl font-bold mb-4">
+              Break Language Barriers
+            </h2>
+            <p className="text-muted-foreground">
+              Join our community and experience the power of modern sign language learning technology.
+            </p>
+          </motion.div>
+        </div>
+      </motion.div>
     </div>
   );
-} 
+}

@@ -232,6 +232,8 @@ export default function TextToSignPage() {
     
     // Check if there's a full phrase match for what was just typed
     const fullText = inputText + char; // Combine existing text with the new character
+    
+    // First check for exact phrase match
     const phraseVideo = getVideoForPhrase(fullText);
     
     if (phraseVideo) {
@@ -239,6 +241,39 @@ export default function TextToSignPage() {
       setCurrentVideo(phraseVideo);
       setVideoHistory(prev => [...prev, phraseVideo]);
       return;
+    }
+    
+    // Check for phrase match within the last few words (for multi-word scenarios)
+    const words = fullText.split(' ');
+    if (words.length > 1) {
+      // Try the last 3 words, then 2 words, then 1 word
+      for (let i = 3; i >= 1; i--) {
+        if (words.length >= i) {
+          const lastWords = words.slice(-i).join(' ');
+          const phraseVideoPath = getVideoForPhrase(lastWords);
+          
+          if (phraseVideoPath) {
+            console.log(`Found phrase video for last ${i} words "${lastWords}": ${phraseVideoPath}`);
+            setCurrentVideo(phraseVideoPath);
+            setVideoHistory(prev => [...prev, phraseVideoPath]);
+            return;
+          }
+        }
+      }
+    }
+    
+    // Check if the last word is a recognized phrase
+    if (words.length > 0) {
+      const lastWord = words[words.length - 1];
+      if (lastWord) {
+        const wordVideoPath = getVideoForPhrase(lastWord);
+        if (wordVideoPath) {
+          console.log(`Found word video for "${lastWord}": ${wordVideoPath}`);
+          setCurrentVideo(wordVideoPath);
+          setVideoHistory(prev => [...prev, wordVideoPath]);
+          return;
+        }
+      }
     }
     
     // Check if we have a video for this character
@@ -288,10 +323,24 @@ export default function TextToSignPage() {
     const lowerText = text.toLowerCase().trim()
     
     if (lowerText === 'hi' || lowerText === 'hello') return '/signs/hi.webm'
-    if (lowerText === 'bye' || lowerText === 'goodbye') return '/signs/bye.webm'
-    if (lowerText === 'thank you' || lowerText === 'thanks') return '/signs/thank-you.webm'
-    if (lowerText === 'welcome') return '/signs/welcome.webm'
-    if (lowerText === 'how are you') return '/signs/How-are-you.webm'
+    else if (lowerText === 'bye' || lowerText === 'goodbye') return '/signs/bye.webm'
+    else if (lowerText === 'thank you' || lowerText === 'thanks') return '/signs/thank-you.webm'
+    else if (lowerText === 'welcome') return '/signs/welcome.webm'
+    else if (lowerText === 'how are you') return '/signs/How-are-you.webm'
+    else if (lowerText === 'everyone') return '/signs/everyone.webm'
+    else if (lowerText === 'good morning') return '/signs/good-morning.webm'
+    else if (lowerText === 'good') return '/signs/good.webm'
+    else if (lowerText === 'name') return '/signs/name.webm'
+    else if (lowerText === 'my') return '/signs/my-.webm'
+    else if (lowerText === 'is') return '/signs/is.webm'
+    else if (lowerText === 'you') return '/signs/you.webm'
+    else if (lowerText === 'yes') return '/signs/yes.webm'
+    else if (lowerText === 'no') return '/signs/no.webm'
+    else if (lowerText === 'please') return '/signs/please.webm'
+    else if (lowerText === 'sorry') return '/signs/sorry.webm'
+    else if (lowerText === 'love you') return '/signs/love-you.webm'
+    else if (lowerText === 'ok') return '/signs/ok.webm'
+
     
     // No match found
     return null;
@@ -308,53 +357,70 @@ export default function TextToSignPage() {
         return;
       }
       
-      // Check if we should use a phrase video instead
+      // Check if we're at the beginning of the sequence
       if (currentCharIndex === 0) {
+        // Check if the entire text matches a phrase video
         const phraseVideo = getVideoForPhrase(processedText);
         if (phraseVideo) {
           console.log(`Using phrase video for "${processedText}": ${phraseVideo}`);
-          
-          // Verify if file exists by creating a test image
-          const testImg = new Image();
-          testImg.onload = () => {
-            // Image exists, which means video likely exists too
-            setCurrentVideo(phraseVideo);
-            setVideoHistory(prev => [...prev, phraseVideo]);
-            setCurrentCharIndex(processedText.length); // Skip to the end
-          };
-          
-          testImg.onerror = () => {
-            // Image doesn't exist, fall back to letter-by-letter
-            console.warn(`Phrase video file not found: ${phraseVideo}, using letter-by-letter instead`);
-            // Continue with the first character
-            const char = processedText[currentCharIndex];
-            const videoPath = getVideoForChar(char);
-            setCurrentVideo(videoPath);
-            setVideoHistory(prev => [...prev, videoPath]);
-            setCurrentCharIndex(prev => prev + 1);
-          };
-          
-          // Try to load a thumbnail of the same name to verify it exists
-          // This assumes you have a thumbnail directory with the same structure
-          const thumbnailPath = phraseVideo.replace('.webm', '.jpg');
-          testImg.src = thumbnailPath;
-          
-          // Set a timeout to move on in case the image test hangs
-          setTimeout(() => {
-            if (!currentVideo) {
-              console.warn("Phrase video verification timed out, proceeding with letter-by-letter");
-              const char = processedText[currentCharIndex];
-              const videoPath = getVideoForChar(char);
-              setCurrentVideo(videoPath);
-              setVideoHistory(prev => [...prev, videoPath]);
-              setCurrentCharIndex(prev => prev + 1);
-            }
-          }, 1000);
-          
+          setCurrentVideo(phraseVideo);
+          setVideoHistory(prev => [...prev, phraseVideo]);
+          setCurrentCharIndex(processedText.length); // Skip to the end
           return;
+        }
+        
+        // Check for multi-word phrases if the full text doesn't match
+        const words = processedText.split(' ');
+        if (words.length > 1) {
+          // Try different combinations of words for phrase videos
+          for (let i = words.length; i >= 1; i--) {
+            for (let j = 0; j <= words.length - i; j++) {
+              const phraseToCheck = words.slice(j, j + i).join(' ');
+              const phraseVideoPath = getVideoForPhrase(phraseToCheck);
+              
+              if (phraseVideoPath) {
+                console.log(`Found phrase video for "${phraseToCheck}": ${phraseVideoPath}`);
+                setCurrentVideo(phraseVideoPath);
+                setVideoHistory(prev => [...prev, phraseVideoPath]);
+                
+                // Skip the characters we just handled
+                const charsToSkip = phraseToCheck.length + (j > 0 ? 1 : 0); // +1 for the space if not at beginning
+                setCurrentCharIndex(prev => prev + charsToSkip);
+                return;
+              }
+            }
+          }
         }
       }
       
+      // Check for phrase from current position
+      if (currentCharIndex < processedText.length) {
+        const remainingText = processedText.substring(currentCharIndex);
+        const words = remainingText.split(' ');
+        
+        // Try with first word and combinations
+        if (words.length >= 1) {
+          for (let i = 3; i >= 1; i--) { // Try at most 3-word phrases
+            if (words.length >= i) {
+              const phraseToCheck = words.slice(0, i).join(' ');
+              const phraseVideoPath = getVideoForPhrase(phraseToCheck);
+              
+              if (phraseVideoPath) {
+                console.log(`Found phrase video for "${phraseToCheck}" from position ${currentCharIndex}: ${phraseVideoPath}`);
+                setCurrentVideo(phraseVideoPath);
+                setVideoHistory(prev => [...prev, phraseVideoPath]);
+                
+                // Skip the characters we just handled
+                const charsToSkip = phraseToCheck.length;
+                setCurrentCharIndex(prev => prev + charsToSkip);
+                return;
+              }
+            }
+          }
+        }
+      }
+      
+      // If no phrase found, continue with character by character
       const char = processedText[currentCharIndex];
       const videoPath = getVideoForChar(char);
       
@@ -806,86 +872,125 @@ export default function TextToSignPage() {
       videoRef.current.playbackRate = 4.0;
     }
     
-    // Process the text character by character
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      setCurrentCharIndex(i);
+    // First check if the whole text matches a phrase
+    const fullPhraseVideo = getVideoForPhrase(text);
+    if (fullPhraseVideo) {
+      console.log(`Found phrase video for entire text "${text}": ${fullPhraseVideo}`);
+      setCurrentVideo(fullPhraseVideo);
+      setVideoHistory(prev => [...prev, fullPhraseVideo]);
       
-      // Check for phrase at current position
-      let skipChars = 0;
-      for (let j = 5; j > 0; j--) { // Check phrases up to 5 chars long
-        if (i + j <= text.length) {
-          const potentialPhrase = text.substring(i, i + j);
-          const phraseVideo = getVideoForPhrase(potentialPhrase);
+      // Wait for video to play
+      await new Promise(resolve => {
+        if (videoRef.current) {
+          const handleEnded = () => {
+            videoRef.current?.removeEventListener('ended', handleEnded);
+            resolve(null);
+          };
+          videoRef.current.addEventListener('ended', handleEnded);
           
-          if (phraseVideo) {
-            console.log(`Found phrase video for "${potentialPhrase}": ${phraseVideo}`);
-            setCurrentVideo(phraseVideo);
-            setVideoHistory(prev => [...prev, phraseVideo]);
-            
-            // Wait for video to play
-            await new Promise(resolve => {
-              if (videoRef.current) {
-                const handleEnded = () => {
-                  videoRef.current?.removeEventListener('ended', handleEnded);
-                  resolve(null);
-                };
-                videoRef.current.addEventListener('ended', handleEnded);
-                
-                // Failsafe timeout - reduced for faster playback
-                setTimeout(() => {
-                  videoRef.current?.removeEventListener('ended', handleEnded);
-                  resolve(null);
-                }, 2500); // Half of original timeout for 4x speed
-              } else {
-                // If no video element, just wait a moment
-                setTimeout(resolve, 250); // Half the time for 4x speed
-              }
-            });
-            
-            skipChars = j - 1; // Skip the phrase characters (minus current one)
-            break;
-          }
+          // Failsafe timeout
+          setTimeout(() => {
+            videoRef.current?.removeEventListener('ended', handleEnded);
+            resolve(null);
+          }, 3000);
+        } else {
+          setTimeout(resolve, 500);
+        }
+      });
+      
+      setIsPlaying(false);
+      return;
+    }
+    
+    // Split text into words
+    const words = text.split(' ');
+    let i = 0;
+    
+    // Process words to find phrases first
+    while (i < words.length) {
+      let phraseFound = false;
+      
+      // Try combinations of words starting from current position
+      for (let j = Math.min(3, words.length - i); j > 0; j--) {
+        const phrase = words.slice(i, i + j).join(' ');
+        const phraseVideo = getVideoForPhrase(phrase);
+        
+        if (phraseVideo) {
+          console.log(`Found phrase video for "${phrase}": ${phraseVideo}`);
+          setCurrentVideo(phraseVideo);
+          setVideoHistory(prev => [...prev, phraseVideo]);
+          
+          // Wait for video to play
+          await new Promise(resolve => {
+            if (videoRef.current) {
+              const handleEnded = () => {
+                videoRef.current?.removeEventListener('ended', handleEnded);
+                resolve(null);
+              };
+              videoRef.current.addEventListener('ended', handleEnded);
+              
+              // Failsafe timeout - reduced for faster playback
+              setTimeout(() => {
+                videoRef.current?.removeEventListener('ended', handleEnded);
+                resolve(null);
+              }, 2500);
+            } else {
+              setTimeout(resolve, 250);
+            }
+          });
+          
+          // Move to next position after the phrase
+          i += j;
+          phraseFound = true;
+          break;
         }
       }
       
-      // If we found a phrase, skip ahead
-      if (skipChars > 0) {
-        i += skipChars;
-        continue;
-      }
-      
-      // Handle individual character
-      if (char === ' ') {
-        // Space - just add to history without pausing
-        console.log("Space detected");
-        setVideoHistory(prev => [...prev, 'space']);
-      } else {
-        // Regular character - play its video
-        const videoPath = getVideoForChar(char);
-        console.log(`Playing video for '${char}': ${videoPath}`);
-        setCurrentVideo(videoPath);
-        setVideoHistory(prev => [...prev, videoPath]);
+      // If no phrase was found, handle the individual word letter by letter
+      if (!phraseFound) {
+        const word = words[i];
         
-        // Wait for the video to finish
-        await new Promise(resolve => {
-          if (videoRef.current) {
-            const handleEnded = () => {
-              videoRef.current?.removeEventListener('ended', handleEnded);
-              resolve(null);
-            };
-            videoRef.current.addEventListener('ended', handleEnded);
-            
-            // Failsafe timeout - reduced for faster playback
-            setTimeout(() => {
-              videoRef.current?.removeEventListener('ended', handleEnded);
-              resolve(null);
-            }, 1500); // Half of original timeout for 4x speed
-          } else {
-            // If no video element, just wait a moment
-            setTimeout(resolve, 250); // Half the time for 4x speed
-          }
-        });
+        // Process the word character by character
+        for (let k = 0; k < word.length; k++) {
+          const char = word[k];
+          setCurrentCharIndex(i + k);
+          
+          // Get video for the character
+          const videoPath = getVideoForChar(char);
+          console.log(`Playing video for character '${char}': ${videoPath}`);
+          setCurrentVideo(videoPath);
+          setVideoHistory(prev => [...prev, videoPath]);
+          
+          // Wait for the video to finish
+          await new Promise(resolve => {
+            if (videoRef.current) {
+              const handleEnded = () => {
+                videoRef.current?.removeEventListener('ended', handleEnded);
+                resolve(null);
+              };
+              videoRef.current.addEventListener('ended', handleEnded);
+              
+              // Failsafe timeout - reduced for faster playback
+              setTimeout(() => {
+                videoRef.current?.removeEventListener('ended', handleEnded);
+                resolve(null);
+              }, 1500);
+            } else {
+              setTimeout(resolve, 250);
+            }
+          });
+        }
+        
+        // Move to next word
+        i++;
+        
+        // Add pause for space between words (unless it's the last word)
+        if (i < words.length) {
+          console.log("Space detected");
+          setVideoHistory(prev => [...prev, 'space']);
+          // Short delay for space
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
     }
     

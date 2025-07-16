@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+twilio
+python-dotenv
+requests
+flask
+numpy
+opencv-python
+mediapipe
+torch
+transformers
+langchain
+langchain-google-genai
+moviepy
+Pillow
+google-generativeai 

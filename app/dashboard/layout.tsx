@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navItems = [
     { href: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard" },
-    { href: "/converter", icon: <HandMetal className="h-5 w-5" />, label: "Converter" },
+    { href: "/CSL", icon: <HandMetal className="h-5 w-5" />, label: "CSL" },
     { href: "/learn", icon: <BookOpen className="h-5 w-5" />, label: "Learn" },
     { href: "/call", icon: <Phone className="h-5 w-5" />, label: "Call" }
   ]

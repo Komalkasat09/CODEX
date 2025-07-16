@@ -352,19 +352,39 @@ export default function SignLanguageLearning(): JSX.Element {
     let queue: VideoQueueItem[] = []
     
     if (level.content.includes(" ")) {
-      queue = level.content.split(" ").map((word: string) => ({
-        text: word,
-        path: word.toLowerCase().startsWith("thank") ? "/signs/thank_you.webm" : null,
-        instructions: "Practice this word in sign language"
-      }))
+      // For word-based content (greetings, sentences)
+      queue = level.content.split(" ").map((word: string) => {
+        let videoPath: string | null = null;
+        
+        // Determine the video path based on the word
+        if (word.toLowerCase().startsWith("thank")) {
+          videoPath = "/signs/thank-you.webm";
+        } else if (word.toLowerCase().startsWith("goodbye")) {
+          videoPath = "/signs/bye.webm";
+        } else if (word.toLowerCase().startsWith("please")) {
+          videoPath = "/signs/please.webm";
+        } else if (word.toLowerCase().startsWith("welcome")) {
+          videoPath = "/signs/welcome.webm";
+        } else if (word.toLowerCase().startsWith("hello")) {
+          videoPath = "/signs/hi.webm";
+        } else if (word.toLowerCase().startsWith("how")) {
+          videoPath = "/signs/how-are-you.webm";
+        } 
+        
+        return {
+          text: word,
+          path: videoPath,
+          instructions: "Practice this word in sign language"
+        };
+      });
     } else {
       // For alphabets, only load the first letter initially
-      const firstChar = level.content[0]
+      const firstChar = level.content[0];
       queue = [{
         text: firstChar,
         path: `/signs/${firstChar.toLowerCase()}.webm`,
         instructions: getLetterInstructions(firstChar)
-      }]
+      }];
     }
     
     setVideoQueue(queue)

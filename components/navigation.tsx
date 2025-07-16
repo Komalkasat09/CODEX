@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { HandMetal, BookOpen, Phone, LayoutDashboard, LogOut, Languages, Video, Mic, Fingerprint } from "lucide-react"
+import { HandMetal, BookOpen, Phone, LayoutDashboard, LogOut, Languages, Video, Mic, Fingerprint, Brain } from "lucide-react"
 import { useUser } from "@/app/context/UserContext"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -20,12 +20,12 @@ const Navigation = () => {
     {
       path: "/sign-to-text",
       name: "Sign to Text",
-      icon: <Video className="w-5 h-5" />,
+      icon: <Fingerprint className="w-5 h-5" />,
     },
     {
       path: "/speech-to-sign",
-      name: "Speech to Sign",
-      icon: <Mic className="w-5 h-5" />,
+      name: "Transcript",
+      icon: <Video className="w-5 h-5" />,
     },
   ]
 
@@ -43,7 +43,7 @@ const Navigation = () => {
     {
       path: "/quiz",
       name: "Quiz",
-      icon: <Fingerprint className="w-5 h-5" />,
+      icon: <Brain className="w-5 h-5" />,
     },
     {
       path: "/call",
